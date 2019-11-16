@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -17,6 +18,8 @@ namespace RimWorldOnlineCity
         private string InputLogin = "";
         private string InputPassword = "";
         private bool NeedFockus = true;
+
+        private Thread loginThread;
 
         public override Vector2 InitialSize
         {
@@ -71,14 +74,31 @@ namespace RimWorldOnlineCity
             if (Widgets.ButtonText(new Rect(inRect.width - btnSize.x * 3, buttonYStart, btnSize.x, btnSize.y), "OCity_LoginForm_BtnEnter".Translate())
                 || ev.isKey && ev.type == EventType.keyDown && ev.keyCode == KeyCode.Return)
             {
-                var msgError = SessionClientController.Login(InputAddr, InputLogin, InputPassword);
-                if (msgError == null)
+                // Make sure we do not already have a thread logging in
+                // Убедитесь, что у нас нет потока, выполняющего процесс входа в систему
+                if (loginThread == null || !loginThread.IsAlive)
                 {
-                    StorageData.GlobalData.LastIP.Value = InputAddr;
-                    StorageData.GlobalData.LastLoginName.Value = InputLogin;
-                    HugsLibController.SettingsManager.SaveChanges();
-                    //Loger.Log("login " + StorageData.GlobalData.LastIP.Value);
-                    Close();
+                    // Create a new thread to log in without freezing
+                    // Создайте новый процесс, чтобы войти без остановки
+                    loginThread = new Thread(() =>
+                    {
+                        var msgError = SessionClientController.Login(InputAddr, InputLogin, InputPassword);
+                        if (msgError == null)
+                        {
+                            StorageData.GlobalData.LastIP.Value = InputAddr;
+                            StorageData.GlobalData.LastLoginName.Value = InputLogin;
+                            HugsLibController.SettingsManager.SaveChanges();
+                            //Loger.Log("login " + StorageData.GlobalData.LastIP.Value);
+                            Close();
+                        }
+                    });
+                    
+                    loginThread.Start();
+                }
+                else
+                {
+                    // Do nothing until the thread finishes
+                    // Ничего не делайте, пока поток не завершится
                 }
             }
 
